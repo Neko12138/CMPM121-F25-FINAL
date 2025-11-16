@@ -1,6 +1,6 @@
 # CMPM121-F25-FINAL
 
-Team Member: Keith Kida (), Jeffery Mei (Neko12138), Wade Xu (JM704-m)
+Team Member: Keith Kida (), Jeffery Mei (JM704-m), Wade Xu (Neko12138)
 
 ## Introducing the team
 Tools Lead: Jeffery 

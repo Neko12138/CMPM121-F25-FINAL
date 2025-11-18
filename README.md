@@ -3,13 +3,14 @@
 Team Member: Keith Kida (), Jeffery Mei (JM704-m), Wade Xu (Neko12138)
 
 ## Introducing the team
-Tools Lead: Jeffery 
+
+Tools Lead: Jeffery
 Engine Lead: All of us
 Design Lead: Wade
 Testing Lead: Keith
 
-
 ## Tools and materials
+
 1&2: We currently plan to use the LÖVE framework for game development, meaning we will be programming in Lua. Lua's corresponding data languages ​​are Lua tables and JSON. We chose this framework primarily because it meets our requirements. Secondly, Lua is a lightweight language that is still powerful enough. Therefore, we believe Love2D and its Lua implementation are a good choice.
 
 3: We haven't decided on the other tools we'll use for in-game element design yet, but in terms of 3D editors, we plan to use Blender. As a general-purpose and free 3D editor, it's easy for us to get started and try it out.

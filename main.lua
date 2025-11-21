@@ -17,11 +17,11 @@ local crate
 local walls = {}
 
 -- Goal area (screen-space rectangle)
-local goal = { x = 540, y = 300, w = 80, h = 80 }
+local goal = { x = 540, y = 500, w = 80, h = 80 }
 
 -- Gameplay state
 local gameState = "playing"
-local timeLimit = 20
+local timeLimit = 60
 local timeLeft  = timeLimit
 
 local moveSpeed = 220

@@ -5,9 +5,11 @@
 
 echo "🔍 Running Lua pre-commit checks..."
 
-# 1. Make sure luac exists (just like D3 强制要求安装 deno)
-if ! command -v luac >/dev/null 2>&1; then
-  echo "❌ 'luac' (Lua compiler) is not installed or not in PATH."
+# 1. Locate Lua compiler: try luac, then luac5.4, then luac5.3
+LUAC=$(command -v luac 2>/dev/null || command -v luac5.4 2>/dev/null || command -v luac5.3 2>/dev/null)
+
+if [ -z "$LUAC" ]; then
+  echo "❌ Lua compiler ('luac' / 'luac5.4') is not installed or not in PATH."
   echo "   Please install Lua before committing."
   exit 1
 fi
@@ -27,7 +29,7 @@ failed=0
 for file in $lua_files; do
   if [ -f "$file" ]; then
     echo "  • $file"
-    if ! luac -p "$file"; then
+    if ! "$LUAC" -p "$file"; then
       echo "❌ Syntax error in $file"
       failed=1
     fi

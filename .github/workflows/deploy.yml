@@ -22,10 +22,10 @@ jobs:
           app-name: FINALLY
           love-version: 11.5 
           source-dir: ./
-          build-dir: ../
+          build-dir: ./
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: MyGame-Windows
-          path: ../
+          path: ./

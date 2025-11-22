@@ -1,43 +1,22 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
-# Pre-commit hook for the F1 Love2D project
-# This hook runs Lua syntax checks on staged .lua files before each commit.
+echo "🔍 Running pre-commit checks..."
 
-echo "🔍 Running Lua pre-commit checks..."
-
-# Check if luac (Lua compiler) is available
-if ! command -v luac >/dev/null 2>&1; then
-  echo "⚠️  'luac' is not installed or not in PATH."
-  echo "    Skipping Lua syntax checks. Install Lua to enable this pre-commit hook."
-  exit 0
+# Example check: prevent committing if 'TODO' appears in lua files
+if grep -R "TODO" --include="*.lua" . > /dev/null; then
+    echo "❌ Commit blocked: TODO found in Lua code."
+    exit 1
 fi
 
-# Collect staged Lua files
-lua_files=$(git diff --cached --name-only -- '*.lua')
-
-if [ -z "$lua_files" ]; then
-  echo "✅ No Lua files staged. Skipping Lua checks."
-  exit 0
-fi
-
-echo "📝 Checking Lua syntax for staged files..."
-failed=0
-
-for file in $lua_files; do
-  if [ -f "$file" ]; then
-    echo "  • $file"
-    if ! luac -p "$file"; then
-      echo "❌ Syntax error in $file"
-      failed=1
+# Basic Lua syntax check (no external tools required)
+for file in $(git diff --cached --name-only --diff-filter=ACM | grep '.lua$'); do
+    echo "Checking Lua syntax: $file"
+    lua -p "$file"
+    if [ $? -ne 0 ]; then
+        echo "❌ Lua syntax error in $file — commit aborted."
+        exit 1
     fi
-  fi
 done
 
-if [ "$failed" -ne 0 ]; then
-  echo ""
-  echo "❌ Lua syntax check failed. Please fix errors before committing."
-  exit 1
-fi
-
-echo "✅ All Lua syntax checks passed!"
+echo "✅ Pre-commit checks passed!"
 exit 0

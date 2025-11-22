@@ -1,0 +1,8 @@
+{
+  "name": "CMPM121 F1 Love2D Dev",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+
+  "features": {},
+
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y lua5.4 && git config core.hooksPath .githooks && chmod +x .githooks/pre-commit"
+}

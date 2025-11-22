@@ -1,13 +1,16 @@
 #!/bin/sh
-# Pre-commit hook for CMPM 121 F1 Love2D project
-# Runs Lua syntax checking on tracked .lua files before each commit.
+# Pre-commit hook for CMPM 121 Love2D project
+# Checks Lua syntax for staged (.lua) files only.
 
 set -e
 
-echo "🔍 Running Lua pre-commit checks..."
+# Debug: set PRE_COMMIT_DEBUG=1 to get more verbose output
+DEBUG=${PRE_COMMIT_DEBUG:-0}
 
-# 1. Find Lua interpreter (lua or lua5.4)
-LUA_CMD=$(command -v lua 2>/dev/null || command -v lua5.4 2>/dev/null)
+echo "🔍 Running Lua pre-commit checks (staged files)..."
+
+# Find Lua interpreter (lua or lua5.4)
+LUA_CMD=$(command -v lua 2>/dev/null || command -v lua5.4 2>/dev/null || true)
 
 if [ -z "$LUA_CMD" ]; then
   echo "❌ Lua interpreter not found (lua / lua5.4)."
@@ -15,34 +18,49 @@ if [ -z "$LUA_CMD" ]; then
   exit 1
 fi
 
-# 2. Collect all tracked Lua files (not only staged ones)
-lua_files=$(git ls-files '*.lua')
+# Get staged files that will be committed and end with .lua
+# diff-filter=ACM -> Added, Copied, Modified
+staged=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.lua$' || true)
 
-if [ -z "$lua_files" ]; then
-  echo "✅ No Lua files in repository. Skipping Lua checks."
+if [ -z "$staged" ]; then
+  [ "$DEBUG" -eq 1 ] && echo "✅ No staged Lua files to check."
   exit 0
 fi
 
-echo "📝 Checking Lua syntax via: $LUA_CMD"
+echo "📝 Checking staged Lua files via: $LUA_CMD"
 failed=0
 
-# 3. Check syntax for each Lua file using loadfile (compile only, do not run)
-for file in $lua_files; do
-  if [ -f "$file" ]; then
-    echo " • $file"
-    if ! "$LUA_CMD" -e 'assert(loadfile(arg[1]))' "$file"; then
-      echo "❌ Syntax error in $file"
-      failed=1
-    fi
+# Create a temporary directory to extract staged versions (so we validate exactly what's being committed)
+tmpdir=$(mktemp -d 2>/dev/null || echo "/tmp/precommit-$$")
+
+for file in $staged; do
+  echo " • $file"
+  # Ensure parent dir exists in temp
+  mkdir -p "$tmpdir/$(dirname "$file")"
+  # Extract staged content into temp file
+  if ! git show ":$file" > "$tmpdir/$file" 2>/dev/null; then
+    echo "❌ Failed to read staged content for $file (it may be renamed/deleted)."
+    failed=1
+    continue
+  fi
+
+  # Run Lua syntax check on the staged copy
+  if ! "$LUA_CMD" -e 'assert(loadfile(arg[1]))' "$tmpdir/$file"; then
+    echo "❌ Syntax error in $file"
+    failed=1
+  else
+    [ "$DEBUG" -eq 1 ] && echo "✔ OK: $file"
   fi
 done
 
-# 4. If any file failed, block the commit
+# Clean up
+rm -rf "$tmpdir"
+
 if [ "$failed" -ne 0 ]; then
   echo ""
   echo "❌ Lua syntax check failed. Fix the errors above before committing."
   exit 1
 fi
 
-echo "✅ All Lua pre-commit checks passed!"
+echo "✅ All staged Lua syntax checks passed!"
 exit 0

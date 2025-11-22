@@ -1,0 +1,40 @@
+name: Lua syntax check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check-lua:
+    name: Check Lua syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Lua
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y lua5.4 || sudo apt-get install -y lua
+
+      - name: Run Lua syntax checks
+        run: |
+          set -e
+          files=$(git ls-files '*.lua')
+          if [ -z "$files" ]; then
+            echo "No Lua files to check"
+            exit 0
+          fi
+          failed=0
+          for f in $files; do
+            echo "Checking $f"
+            if ! lua -e "assert(loadfile('$f'))"; then
+              echo "Syntax error in $f"
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "Lua syntax check failed"
+            exit 1
+          fi

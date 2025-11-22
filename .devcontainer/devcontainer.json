@@ -8,7 +8,7 @@
 		"ghcr.io/wxw-matt/devcontainer-features/script_runner:0": {}
 	},
 	"forwardPorts": [5173],
-	"postCreateCommand": "apk update && (apk add --no-cache lua5.4 git || apk add --no-cache lua git) && git config core.hooksPath .githooks && chmod +x .githooks/pre-commit",
+	"postCreateCommand": "chmod +x ./setup-hooks.sh && ./setup-hooks.sh",
 	"postStartCommand": "chmod +x ./setup-hooks.sh && ./setup-hooks.sh",
 
 	"customizations": {

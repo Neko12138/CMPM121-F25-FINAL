@@ -1,4 +1,3 @@
-
 -- Third-party libraries
 
 local dream = require("libs.3DreamEngine.3DreamEngine")
@@ -213,13 +212,3 @@ end
 function love.resize()
   dream:resize()
 end
-
-
-WASD
-  \
-
-
-Incorrect syntax
-function
-
-  tesing

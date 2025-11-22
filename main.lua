@@ -213,3 +213,13 @@ end
 function love.resize()
   dream:resize()
 end
+
+
+WASD
+  \
+
+
+Incorrect syntax
+function
+
+  tesing

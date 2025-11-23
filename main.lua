@@ -212,3 +212,8 @@ end
 function love.resize()
   dream:resize()
 end
+
+
+function love.draw()
+    love.graphics.print("Hello")
+end

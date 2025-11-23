@@ -1,65 +1,86 @@
 #!/bin/sh
 # Pre-commit hook for CMPM 121 Love2D project
 # Checks Lua syntax for staged (.lua) files only.
+# Uses 'luac -p' (parse only) if available, otherwise falls back to 'lua'.
 
 set -e
 
-# Debug: set PRE_COMMIT_DEBUG=1 to get more verbose output
-DEBUG=${PRE_COMMIT_DEBUG:-0}
-
 echo "🔍 Running Lua pre-commit checks (staged files)..."
 
-# Find Lua interpreter (lua or lua5.4)
-LUA_CMD=$(command -v lua 2>/dev/null || command -v lua5.4 2>/dev/null || true)
-
-if [ -z "$LUA_CMD" ]; then
-  echo "❌ Lua interpreter not found (lua / lua5.4)."
-  echo "   Please install Lua before committing."
-  exit 1
+# 1. Find a valid Lua syntax checker (prefer luac for strict parsing)
+if command -v luac >/dev/null 2>&1; then
+    CHECKER="luac -p"
+    CMD_TYPE="compiler"
+elif command -v luac5.4 >/dev/null 2>&1; then
+    CHECKER="luac5.4 -p"
+    CMD_TYPE="compiler"
+elif command -v lua >/dev/null 2>&1; then
+    CHECKER="lua -e 'assert(loadfile(arg[1]))'"
+    CMD_TYPE="interpreter"
+elif command -v lua5.4 >/dev/null 2>&1; then
+    CHECKER="lua5.4 -e 'assert(loadfile(arg[1]))'"
+    CMD_TYPE="interpreter"
+else
+    echo "❌ Lua interpreter/compiler not found."
+    echo "   Please install Lua (or luac) before committing."
+    exit 1
 fi
 
-# Get staged files that will be committed and end with .lua
+# 2. Identify staged Lua files
 # diff-filter=ACM -> Added, Copied, Modified
 staged=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.lua$' || true)
 
 if [ -z "$staged" ]; then
-  [ "$DEBUG" -eq 1 ] && echo "✅ No staged Lua files to check."
-  exit 0
+    echo "✅ No staged Lua files to check."
+    exit 0
 fi
 
-echo "📝 Checking staged Lua files via: $LUA_CMD"
+echo "📝 Checking syntax using: $CHECKER"
 failed=0
 
-# Create a temporary directory to extract staged versions (so we validate exactly what's being committed)
+# 3. Create temp directory for staged content
 tmpdir=$(mktemp -d 2>/dev/null || echo "/tmp/precommit-$$")
+mkdir -p "$tmpdir"
 
 for file in $staged; do
-  echo " • $file"
-  # Ensure parent dir exists in temp
-  mkdir -p "$tmpdir/$(dirname "$file")"
-  # Extract staged content into temp file
-  if ! git show ":$file" > "$tmpdir/$file" 2>/dev/null; then
-    echo "❌ Failed to read staged content for $file (it may be renamed/deleted)."
-    failed=1
-    continue
-  fi
+    # Create directory structure in temp
+    mkdir -p "$tmpdir/$(dirname "$file")"
+    
+    # Extract the staged version of the file to the temp dir
+    if ! git show ":$file" > "$tmpdir/$file" 2>/dev/null; then
+        echo "⚠️  Could not read staged content for $file. Skipping."
+        continue
+    fi
 
-  # Run Lua syntax check on the staged copy
-  if ! "$LUA_CMD" -e 'assert(loadfile(arg[1]))' "$tmpdir/$file"; then
-    echo "❌ Syntax error in $file"
-    failed=1
-  else
-    [ "$DEBUG" -eq 1 ] && echo "✔ OK: $file"
-  fi
+    # Run the check
+    # We use eval to handle quotes in the CHECKER variable correctly
+    if [ "$CMD_TYPE" = "compiler" ]; then
+        # capture output to hide standard success messages, show errors
+        if ! $CHECKER "$tmpdir/$file" > /dev/null 2>&1; then
+            echo "❌ Syntax Error: $file"
+            # Run again without redirection to show the specific error to the user
+            $CHECKER "$tmpdir/$file"
+            failed=1
+        fi
+    else
+        # Interpreter fallback method
+        if ! sh -c "$CHECKER \"$tmpdir/$file\"" > /dev/null 2>&1; then
+            echo "❌ Syntax Error: $file"
+             sh -c "$CHECKER \"$tmpdir/$file\""
+            failed=1
+        fi
+    fi
 done
 
 # Clean up
 rm -rf "$tmpdir"
 
 if [ "$failed" -ne 0 ]; then
-  echo ""
-  echo "❌ Lua syntax check failed. Fix the errors above before committing."
-  exit 1
+    echo "--------------------------------------------------------"
+    echo "🚫 COMMIT BLOCKED: Syntax errors found."
+    echo "   Please fix the Lua errors listed above and try again."
+    echo "--------------------------------------------------------"
+    exit 1
 fi
 
 echo "✅ All staged Lua syntax checks passed!"

@@ -211,5 +211,5 @@ end
 
 function love.resize()
   dream:resize()
-
+end
 

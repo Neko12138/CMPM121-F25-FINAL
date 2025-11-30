@@ -75,7 +75,7 @@ local function setupWorld(roomName)
   -- Setup Specific Room Physics
   if roomName == "main" then
       -- == MAIN ROOM
-      crate = world:newCollider("Rectangle", {700, 90, 40, 40})
+      crate = world:newCollider("Rectangle", {400, 300, 40, 40})
       crate:setFixedRotation(true)
       crate:setLinearDamping(4)
       

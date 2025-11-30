@@ -1,5 +1,4 @@
 -- Third-party libraries
-
 local dream = require("libs.3DreamEngine.3DreamEngine")
 local bf    = require("libs.breezefield")
 
@@ -9,73 +8,125 @@ local ballTexture
 local ballQuad
 local ballSprite
 
--- 2D physics world (Breezefield)
+-- 2D physics world
 local world
 local player
 local crate
 local walls = {}
 
--- Goal area (screen-space rectangle)
-local goal = { x = 540, y = 500, w = 80, h = 80 }
+-- Goal area screen-space rectangle for the Main Room
+local mainGoal = { x = 540, y = 500, w = 80, h = 80 }
+
+-- Yellow Zones for Rooms 1, 2, 3
+local yellowZones = {
+    room1 = { x = 700, y = 100, w = 40, h = 40, hasKey = false },
+    room2 = { x = 100, y = 100, w = 40, h = 40, hasKey = true }, -- The real key is here
+    room3 = { x = 700, y = 500, w = 40, h = 40, hasKey = false }
+}
 
 -- Gameplay state
 local gameState = "playing"
 local timeLimit = 120
 local timeLeft  = timeLimit
-
 local moveSpeed = 220
 
--- Pulling state (move these near top so they're clearly defined)
-local pulling = false      -- Player pull state
+-- Interaction & Inventory State
+local hasKey = false
+local isCrateLocked = true
+local message = ""
+local messageTimer = 0
+
+-- Pulling state
+local pulling = false
 local pullOffsetX = 0
 local pullOffsetY = 0
-local pullDistance = 50    -- Pull trigger distance
+local pullDistance = 60 
 
 -- Helpers
-local function resetPuzzle()
-  gameState = "playing"
-  timeLeft  = timeLimit
-
-  -- cancel pulling if active
-  pulling = false
-
-  -- player starts near bottom-left, with a gap to the walls
-  player:setPosition(120, 510)
-  player:setLinearVelocity(0, 0)
-  player:setType("dynamic")
-
-  -- crate starts near top-right, with a gap to the walls
-  crate:setPosition(700, 90)
-  crate:setLinearVelocity(0, 0)
-  crate:setType("dynamic")
+local function createWall(x, y, w, h)
+    local wall = world:newCollider("Rectangle", {x, y, w, h})
+    wall:setType("static")
+    table.insert(walls, wall)
 end
 
+-- Modified setupWorld to handle different rooms
+local function setupWorld(roomName)
+  -- SAFELY destroy the old world if it exists
+  if world and world.destroy then
+      world:destroy()
+  end
+  
+  walls = {} -- Clear old walls
+  world = bf.newWorld(0, 0, true) -- Create new physics world
 
-local function setupWorld()
-  world = bf.newWorld(0, 0, true)
+  -- Create Player
+  -- Default spawn point
+  local px, py = 120, 510 
+  
+  -- Use different spawn points for different rooms if needed
+  if roomName == "room2" then px, py = 700, 500 end
+  if roomName == "room3" then px, py = 120, 120 end
 
-  -- player & crate
-  player = world:newCollider("Rectangle", {120, 510, 40, 40})
-  crate  = world:newCollider("Rectangle", {700, 90, 40, 40})
+  player = world:newCollider("Rectangle", {px, py, 40, 40})
   player:setType("dynamic")
-  crate:setType("dynamic")
-  player:setLinearDamping(4)
-  crate:setLinearDamping(4)
   player:setFixedRotation(true)
-  crate:setFixedRotation(true)
+  player:setLinearDamping(4)
 
-  -- Static boundary walls
-  walls = {
-    world:newCollider("Rectangle", {400, 50, 760, 20}),   -- top
-    world:newCollider("Rectangle", {400, 550, 760, 20}),  -- bottom
-    world:newCollider("Rectangle", {50, 300, 20, 500}),   -- left
-    world:newCollider("Rectangle", {750, 300, 20, 500}),  -- right
-  }
-  for _, w in ipairs(walls) do
-    w:setType("static")
+  -- Setup Specific Room Physics
+  if roomName == "main" then
+      -- == MAIN ROOM
+      crate = world:newCollider("Rectangle", {700, 90, 40, 40})
+      crate:setFixedRotation(true)
+      crate:setLinearDamping(4)
+      
+      -- Lock logic
+      if isCrateLocked then
+          crate:setType("static")
+      else
+          crate:setType("dynamic")
+      end
+
+      -- Original Walls
+      createWall(400, 50, 760, 20)   -- top
+      createWall(400, 550, 760, 20)  -- bottom
+      createWall(50, 300, 20, 500)   -- left
+      createWall(750, 300, 20, 500)  -- right
+
+  elseif roomName == "room1" then
+      -- == ROOM 1
+      createWall(400, 25, 800, 50) -- Top
+      createWall(400, 575, 800, 50)-- Bottom
+      createWall(25, 300, 50, 600) -- Left
+      createWall(775, 300, 50, 600)-- Right
+      
+      -- Maze walls
+      createWall(300, 200, 400, 20)
+      createWall(500, 400, 400, 20)
+
+  elseif roomName == "room2" then
+      -- == ROOM 2
+      createWall(400, 25, 800, 50)
+      createWall(400, 575, 800, 50)
+      createWall(25, 300, 50, 600)
+      createWall(775, 300, 50, 600)
+      
+      -- Maze walls
+      createWall(250, 300, 20, 400)
+      createWall(550, 300, 20, 400)
+
+  elseif roomName == "room3" then
+      -- == ROOM 3
+      createWall(400, 25, 800, 50)
+      createWall(400, 575, 800, 50)
+      createWall(25, 300, 50, 600)
+      createWall(775, 300, 50, 600)
+      
+      -- Maze walls
+      createWall(400, 300, 200, 200)
   end
 
-  resetPuzzle()
+  gameState = "playing"
+  pulling = false
 end
 
 
@@ -88,23 +139,24 @@ local buttonW = 80
 local buttonH = 30
 local buttonXStart = 20
 
--- room change
+-- Room Change Handlers
+-- REFACTORED: Now all rooms call setupWorld with their name
 local roomHandlers = {
     main = function()
-        setupWorld()
+        setupWorld("main")
         print("Entered Main Room")
     end,
     room1 = function()
-        world = nil
-        print("Entered Room 1 (empty)")
+        setupWorld("room1")
+        print("Entered Room 1")
     end,
     room2 = function()
-        world = nil
-        print("Entered Room 2 (empty)")
+        setupWorld("room2")
+        print("Entered Room 2")
     end,
     room3 = function()
-        world = nil
-        print("Entered Room 3 (empty)")
+        setupWorld("room3")
+        print("Entered Room 3")
     end,
 }
 
@@ -117,15 +169,14 @@ end
 
 -- LOVE callbacks
 function love.load()
-  love.window.setTitle("F1 Physics Puzzle - Push the Crate")
+  love.window.setTitle("F2 Adventure - Maze & Inventory")
 
-  -- 3D initialization: 3DreamEngine with a simple billboard ball
+  -- 3D initialization
   dream:init()
-
   sun = dream:newLight("sun")
   sun:setPosition(2, 4, 2)
 
-  -- Use a Canvas to draw a white circle as the billboard texture
+  -- Texture setup
   ballTexture = love.graphics.newCanvas(64, 64)
   love.graphics.push("all")
   love.graphics.setCanvas(ballTexture)
@@ -146,20 +197,63 @@ end
 function love.keypressed(key)
     if key == "r" then
         if world then
-            resetPuzzle()
+            setupWorld(currentRoom)
         end
         pulling = false
+    
     elseif key == "space" then
         if world then
             local px, py = player:getPosition()
-            local cx, cy = crate:getPosition()
-            local dx, dy = cx - px, cy - py
-            local dist = math.sqrt(dx*dx + dy*dy)
-            if dist <= pullDistance then
-                pulling = true
-                pullOffsetX = dx
-                pullOffsetY = dy
-                crate:setLinearVelocity(0, 0)
+            
+            -- == INTERACTION LOGIC ==
+            
+            if currentRoom == "main" then
+                -- CRATE INTERACTION
+                local cx, cy = crate:getPosition()
+                local dist = math.sqrt((cx-px)^2 + (cy-py)^2)
+                
+                if dist <= pullDistance then
+                    if isCrateLocked then
+                        if hasKey then
+                            isCrateLocked = false
+                            crate:setType("dynamic")
+                            message = "UNLOCKED! You can now move the crate."
+                        else
+                            message = "LOCKED! You need to find a key in the maze rooms."
+                        end
+                        messageTimer = 3
+                    else
+                        -- Start Pulling
+                        pulling = true
+                        pullOffsetX = cx - px
+                        pullOffsetY = cy - py
+                        crate:setLinearVelocity(0, 0)
+                    end
+                end
+                
+            else
+                -- YELLOW ZONE INTERACTION (Rooms 1, 2, 3)
+                local zone = yellowZones[currentRoom]
+                if zone then
+                    -- Calculate distance to center of yellow zone
+                    local zCenterX = zone.x + zone.w/2
+                    local zCenterY = zone.y + zone.h/2
+                    local dist = math.sqrt((zCenterX-px)^2 + (zCenterY-py)^2)
+                    
+                    if dist <= 60 then
+                        if zone.hasKey then
+                            if not hasKey then
+                                hasKey = true
+                                message = "YOU FOUND THE KEY!"
+                            else
+                                message = "You already have the key."
+                            end
+                        else
+                            message = "There is no key here."
+                        end
+                        messageTimer = 3
+                    end
+                end
             end
         end
     end
@@ -169,7 +263,9 @@ end
 function love.keyreleased(key)
     if key == "space" then
         pulling = false
-        if world then crate:setLinearVelocity(0, 0) end
+        if world and crate and not isCrateLocked then 
+            crate:setLinearVelocity(0, 0) 
+        end
     end
 end
 
@@ -184,9 +280,8 @@ local function updatePlayerMovement(dt)
   player:setLinearVelocity(vx, vy)
 end
 
--- This is the pulling updater
 local function updatePulling(dt)
-    if pulling and world then
+    if pulling and world and not isCrateLocked then
         local px, py = player:getPosition()
         crate:setPosition(px + pullOffsetX, py + pullOffsetY)
         crate:setLinearVelocity(0, 0)
@@ -194,12 +289,12 @@ local function updatePulling(dt)
 end
 
 local function checkWinCondition()
-  if not world or gameState ~= "playing" then return end
+  if not world or gameState ~= "playing" or currentRoom ~= "main" then return end
   local cx, cy = crate:getPosition()
-  local left   = goal.x - goal.w / 2
-  local right  = goal.x + goal.w / 2
-  local top    = goal.y - goal.h / 2
-  local bottom = goal.y + goal.h / 2
+  local left   = mainGoal.x - mainGoal.w / 2
+  local right  = mainGoal.x + mainGoal.w / 2
+  local top    = mainGoal.y - mainGoal.h / 2
+  local bottom = mainGoal.y + mainGoal.h / 2
   if cx >= left and cx <= right and cy >= top and cy <= bottom then
     gameState = "success"
   end
@@ -218,6 +313,11 @@ function love.update(dt)
 
     checkWinCondition()
   end
+  
+  if messageTimer > 0 then
+      messageTimer = messageTimer - dt
+      if messageTimer <= 0 then message = "" end
+  end
 
   dream:update()
 end
@@ -225,7 +325,7 @@ end
 
 -- Drawing
 function love.draw()
-  -- 1) 3D background: rotating billboard ball (3DreamEngine)
+  -- 1) 3D background
   dream:prepare()
   dream:addLight(sun)
   if ballSprite then
@@ -240,27 +340,73 @@ function love.draw()
   love.graphics.setColor(1, 1, 1, 1)
 
   if world then
-    -- Goal area
-    love.graphics.setColor(0.2, 0.8, 0.3, 0.4)
-    love.graphics.rectangle("fill", goal.x - goal.w/2, goal.y - goal.h/2, goal.w, goal.h)
+    -- Draw Room Specific Floor/Targets
+    if currentRoom == "main" then
+        -- Draw Green Goal
+        love.graphics.setColor(0.2, 0.8, 0.3, 0.4)
+        love.graphics.rectangle("fill", mainGoal.x - mainGoal.w/2, mainGoal.y - mainGoal.h/2, mainGoal.w, mainGoal.h)
+        
+        -- Draw Crate manually
+        local cx, cy = crate:getPosition()
+        if isCrateLocked then
+            love.graphics.setColor(1, 0, 0, 1)
+        else
+            love.graphics.setColor(1, 1, 1, 1)
+        end
+        love.graphics.rectangle("fill", cx-20, cy-20, 40, 40)
+    
+    else
+        -- Draw Yellow Interaction Zones (Rooms 1, 2, 3)
+        local zone = yellowZones[currentRoom]
+        if zone then
+            love.graphics.setColor(1, 1, 0, 0.6) -- Yellow
+            love.graphics.rectangle("fill", zone.x, zone.y, zone.w, zone.h)
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.print("ZONE", zone.x, zone.y - 15)
+        end
+    end
+
     love.graphics.setColor(1, 1, 1, 1)
+    -- Draw physics world
     world:draw()
   end
 
-  -- HUD
+  -- HUD & UI
   local y = 20
   local function line(text)
     love.graphics.print(text, 20, y)
     y = y + 18
   end
 
+  -- INVENTORY DISPLAY
+  love.graphics.setColor(0, 0, 0, 0.5)
+  love.graphics.rectangle("fill", 650, 10, 140, 60)
+  love.graphics.setColor(1, 1, 1, 1)
+  love.graphics.rectangle("line", 650, 10, 140, 60)
+  love.graphics.print("INVENTORY:", 660, 20)
+  if hasKey then
+      love.graphics.setColor(1, 1, 0, 1)
+      love.graphics.print("[ KEY ]", 660, 40)
+  else
+      love.graphics.setColor(0.6, 0.6, 0.6, 1)
+      love.graphics.print("Empty", 660, 40)
+  end
+  love.graphics.setColor(1, 1, 1, 1)
+
+
   if world then
-    line("Controls: WASD / Arrow keys to move. R to restart.")
+    line("Controls: WASD Move. SPACE to Interact/Pull. R Restart.")
     line(string.format("Time left: %.1f seconds", timeLeft))
+    
+    -- Status Messages
+    if message ~= "" then
+        love.graphics.setColor(1, 0.5, 0, 1)
+        love.graphics.print(message, 300, 50)
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+
     if gameState == "success" then line("") line("SUCCESS! The crate reached the goal. Press R.") 
     elseif gameState == "fail" then line("") line("FAILED! Time ran out. Press R.") end
-  else
-    line("Empty room. Use buttons to return to Main Room.")
   end
 
   -- Draw Room Buttons
@@ -278,6 +424,8 @@ end
 
 function love.mousepressed(mx, my, button)
     if button ~= 1 then return end
+    
+    -- Room switching buttons
     local x = buttonXStart
     for i, room in ipairs(rooms) do
         if mx >= x and mx <= x + buttonW and my >= buttonY and my <= buttonY + buttonH then

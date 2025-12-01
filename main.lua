@@ -196,6 +196,9 @@ end
 -- Input
 function love.keypressed(key)
     if key == "r" then
+        isCrateLocked = true
+        timeLeft = timeLimit
+        hasKey = false
         if world then
             setupWorld(currentRoom)
         end

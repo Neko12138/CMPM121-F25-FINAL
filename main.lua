@@ -199,6 +199,7 @@ function love.keypressed(key)
         isCrateLocked = true
         timeLeft = timeLimit
         hasKey = false
+        currentRoom = "main"
         if world then
             setupWorld(currentRoom)
         end

@@ -42,6 +42,63 @@ local pullOffsetX = 0
 local pullOffsetY = 0
 local pullDistance = 60 
 
+-- Language Settings
+local langs = {"en", "zh", "ar"} -- English, Chinese, Arabic
+local currentLangIndex = 1
+
+-- Font Variables
+local font_zh = nil -- (Noto Sans SC)
+local font_ar = nil -- (Noto Sans Arabic)
+
+-- Translation Dictionary
+local txt = {
+    en = {
+        ctrl = "Controls: WASD Move. SPACE Interact/Pull. R Restart. L Language.",
+        time = "Time left: %.1f seconds",
+        inv = "INVENTORY:",
+        empty = "Empty",
+        key = "[ KEY ]",
+        msg_unlock = "UNLOCKED! You can now move the crate.",
+        msg_lock = "LOCKED! You need to find a key in the maze rooms.",
+        msg_found = "YOU FOUND THE KEY!",
+        msg_have = "You already have the key.",
+        msg_no = "There is no key here.",
+        win = "SUCCESS! The crate reached the goal. Press R.",
+        fail = "FAILED! Time ran out. Press R.",
+        zone = "ZONE"
+    },
+    zh = {
+        ctrl = "操作: WASD 移动. 空格 互动. R 重置. L 切换语言.",
+        time = "剩余时间: %.1f 秒",
+        inv = "物品栏:",
+        empty = "空",
+        key = "[ 钥匙 ]",
+        msg_unlock = "已解锁！现在可以移动箱子。",
+        msg_lock = "已上锁！去迷宫房间找钥匙。",
+        msg_found = "找到钥匙了！",
+        msg_have = "你已经有钥匙了。",
+        msg_no = "这里没有钥匙。",
+        win = "成功！箱子已到位。按 R 重来。",
+        fail = "失败！时间耗尽。按 R 重来。",
+        zone = "区域"
+    },
+    ar = {
+        ctrl = "تحكم: WASD تحرك. مسافة تفاعل. R إعادة. L لغة.", 
+        time = "الوقت: %.1f ثانية",
+        inv = ":المخزون",
+        empty = "فارغ",
+        key = "[ مفتاح ]",
+        msg_unlock = "مفتوح! حرك الصندوق الآن.",
+        msg_lock = "مغلق! ابحث عن المفتاح.",
+        msg_found = "وجدت المفتاح!",
+        msg_have = "لديك المفتاح بالفعل.",
+        msg_no = "لا يوجد مفتاح هنا.",
+        win = "نجاح! اضغط R.",
+        fail = "فشل! اضغط R.",
+        zone = "منطقة"
+    }
+}
+
 -- Helpers
 local function createWall(x, y, w, h)
     local wall = world:newCollider("Rectangle", {x, y, w, h})
@@ -175,6 +232,22 @@ function love.load()
   dream:init()
   sun = dream:newLight("sun")
   sun:setPosition(2, 4, 2)
+  
+  -- [[ NEW: Load BOTH Fonts ]]
+  if love.filesystem.getInfo("font.ttf") then
+      font_zh = love.graphics.newFont("font.ttf", 16)
+  else
+      font_zh = love.graphics.newFont(14)
+  end
+
+  if love.filesystem.getInfo("font_ar.ttf") then
+      font_ar = love.graphics.newFont("font_ar.ttf", 16)
+  else
+      print("Warning: font_ar.ttf not found! Arabic will not show.")
+      font_ar = font_zh
+  end
+  
+  love.graphics.setFont(font_zh)
 
   -- Texture setup
   ballTexture = love.graphics.newCanvas(64, 64)
@@ -195,6 +268,14 @@ end
 
 -- Input
 function love.keypressed(key)
+    -- [[ Switch Language Logic ]]
+    if key == "l" then
+        currentLangIndex = currentLangIndex + 1
+        if currentLangIndex > #langs then 
+            currentLangIndex = 1 
+        end
+    end
+
     if key == "r" then
         isCrateLocked = true
         timeLeft = timeLimit
@@ -221,9 +302,9 @@ function love.keypressed(key)
                         if hasKey then
                             isCrateLocked = false
                             crate:setType("dynamic")
-                            message = "UNLOCKED! You can now move the crate."
+                            message = "msg_unlock"
                         else
-                            message = "LOCKED! You need to find a key in the maze rooms."
+                            message = "msg_lock"
                         end
                         messageTimer = 3
                     else
@@ -248,12 +329,12 @@ function love.keypressed(key)
                         if zone.hasKey then
                             if not hasKey then
                                 hasKey = true
-                                message = "YOU FOUND THE KEY!"
+                                message = "msg_found"
                             else
-                                message = "You already have the key."
+                                message = "msg_have"
                             end
                         else
-                            message = "There is no key here."
+                            message = "msg_no"
                         end
                         messageTimer = 3
                     end
@@ -343,6 +424,17 @@ function love.draw()
   love.graphics.origin()
   love.graphics.setColor(1, 1, 1, 1)
 
+  -- [[ NEW: Get current dictionary & SET FONT ]]
+  local langCode = langs[currentLangIndex]
+  local curTxt = txt[langCode]
+  
+  -- Dynamically Switch Font
+  if langCode == "ar" then
+      love.graphics.setFont(font_ar)
+  else
+      love.graphics.setFont(font_zh)
+  end
+
   if world then
     -- Draw Room Specific Floor/Targets
     if currentRoom == "main" then
@@ -366,7 +458,9 @@ function love.draw()
             love.graphics.setColor(1, 1, 0, 0.6) -- Yellow
             love.graphics.rectangle("fill", zone.x, zone.y, zone.w, zone.h)
             love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.print("ZONE", zone.x, zone.y - 15)
+            
+            -- [[ UPDATED: Use variable text ]]
+            love.graphics.print(curTxt.zone, zone.x, zone.y - 15)
         end
     end
 
@@ -387,30 +481,38 @@ function love.draw()
   love.graphics.rectangle("fill", 650, 10, 140, 60)
   love.graphics.setColor(1, 1, 1, 1)
   love.graphics.rectangle("line", 650, 10, 140, 60)
-  love.graphics.print("INVENTORY:", 660, 20)
+  
+  -- [[ UPDATED: Use variable text ]]
+  love.graphics.print(curTxt.inv, 660, 20)
   if hasKey then
       love.graphics.setColor(1, 1, 0, 1)
-      love.graphics.print("[ KEY ]", 660, 40)
+      love.graphics.print(curTxt.key, 660, 40)
   else
       love.graphics.setColor(0.6, 0.6, 0.6, 1)
-      love.graphics.print("Empty", 660, 40)
+      love.graphics.print(curTxt.empty, 660, 40)
   end
   love.graphics.setColor(1, 1, 1, 1)
 
 
   if world then
-    line("Controls: WASD Move. SPACE to Interact/Pull. R Restart.")
-    line(string.format("Time left: %.1f seconds", timeLeft))
+    -- [[ UPDATED: Use variable text ]]
+    line(curTxt.ctrl)
+    line(string.format(curTxt.time, timeLeft))
     
     -- Status Messages
     if message ~= "" then
         love.graphics.setColor(1, 0.5, 0, 1)
-        love.graphics.print(message, 300, 50)
+        
+        -- [[ UPDATED: Lookup message key ]]
+        local str = curTxt[message] or message
+        love.graphics.print(str, 300, 50)
+        
         love.graphics.setColor(1, 1, 1, 1)
     end
 
-    if gameState == "success" then line("") line("SUCCESS! The crate reached the goal. Press R.") 
-    elseif gameState == "fail" then line("") line("FAILED! Time ran out. Press R.") end
+    -- [[ UPDATED: Win/Fail text ]]
+    if gameState == "success" then line("") line(curTxt.win) 
+    elseif gameState == "fail" then line("") line(curTxt.fail) end
   end
 
   -- Draw Room Buttons

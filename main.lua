@@ -18,10 +18,11 @@ local walls = {}
 local mainGoal = { x = 540, y = 500, w = 80, h = 80 }
 
 -- Yellow Zones for Rooms 1, 2, 3
-local yellowZones = {
-    room1 = { x = 700, y = 100, w = 40, h = 40, hasKey = false },
-    room2 = { x = 100, y = 100, w = 40, h = 40, hasKey = true }, -- The real key is here
-    room3 = { x = 700, y = 500, w = 40, h = 40, hasKey = false }
+yellowZones = {
+    main  = { x=500, y=400, w=40, h=40, collected=false },
+    room1 = { x=700, y=100, w=40, h=40, collected=false },
+    room2 = { x=100, y=100, w=40, h=40, collected=false },
+    room3 = { x=700, y=500, w=40, h=40, collected=false }
 }
 
 -- Gameplay state
@@ -31,10 +32,13 @@ local timeLeft  = timeLimit
 local moveSpeed = 220
 
 -- Interaction & Inventory State
-local hasKey = false
+local bigKeyStage = 0
+local maxKeyStage = 4
 local isCrateLocked = true
 local message = ""
 local messageTimer = 0
+local uKeyWarning = false
+local uKeyTimer = 0 
 
 -- Pulling state
 local pulling = false
@@ -59,13 +63,16 @@ local txt = {
         empty = "Empty",
         key = "[ KEY ]",
         msg_unlock = "UNLOCKED! You can now move the crate.",
-        msg_lock = "LOCKED! You need to find a key in the maze rooms.",
+        msg_lock = "LOCKED! You need complete triangular key to unlock.",
         msg_found = "YOU FOUND THE KEY!",
-        msg_have = "You already have the key.",
-        msg_no = "There is no key here.",
         win = "SUCCESS! The crate reached the goal. Press R.",
         fail = "FAILED! Time ran out. Press R.",
-        zone = "ZONE"
+        zone = "ZONE",
+        msg_piece = "You found a key fragment!",
+        msg_u_warn = "WARNING: This will undo all key progress. Press U again to confirm.",
+        msg_u_done = "All key progress has been undone!",
+        msg_u_hit = "Press U to destroy key",
+        key_progress = "[ Triangle Key %d/%d ]"
     },
     zh = {
         ctrl = "操作: WASD 移动. 空格 互动. R 重置. L 切换语言.",
@@ -74,13 +81,16 @@ local txt = {
         empty = "空",
         key = "[ 钥匙 ]",
         msg_unlock = "已解锁！现在可以移动箱子。",
-        msg_lock = "已上锁！去迷宫房间找钥匙。",
-        msg_found = "找到钥匙了！",
-        msg_have = "你已经有钥匙了。",
-        msg_no = "这里没有钥匙。",
+        msg_lock = "锁上了！你需要一把完整的三角钥匙来解锁。",
+        msg_found = "找到三角钥匙碎片了！",
         win = "成功！箱子已到位。按 R 重来。",
         fail = "失败！时间耗尽。按 R 重来。",
-        zone = "区域"
+        zone = "区域",
+        msg_piece = "你捡到了一块钥匙碎片！",
+        msg_u_warn = "警告，这将撤销你所有的收集进度，再次按U以确认",
+        msg_u_done = "钥匙进度已撤销！",
+        msg_u_hit = "按U摧毁钥匙。",
+        key_progress = "[ 三角钥匙 %d/%d ]"
     },
     ar = {
         ctrl = "تحكم: WASD تحرك. مسافة تفاعل. R إعادة. L لغة.", 
@@ -91,11 +101,14 @@ local txt = {
         msg_unlock = "مفتوح! حرك الصندوق الآن.",
         msg_lock = "مغلق! ابحث عن المفتاح.",
         msg_found = "وجدت المفتاح!",
-        msg_have = "لديك المفتاح بالفعل.",
-        msg_no = "لا يوجد مفتاح هنا.",
         win = "نجاح! اضغط R.",
         fail = "فشل! اضغط R.",
-        zone = "منطقة"
+        zone = "منطقة",
+        msg_piece = "لقد وجدت قطعة مفتاح!",
+        msg_u_warn = "تحذير: سيؤدي هذا إلى التراجع عن كل تقدم المفتاح. اضغط U مرة أخرى للتأكيد.",
+        msg_u_done = "تم التراجع عن كل تقدم المفتاح!",
+        msg_u_hit = ".اضغط U مرة أخرى للتأكيد.",
+        key_progress = "[ مفتاح مثلث %d/%d ]"
     }
 }
 
@@ -224,6 +237,15 @@ local function enterRoom(name)
     end
 end
 
+-- Load Key Images
+local bigKeySprites = {}
+bigKeySprites[1] = love.graphics.newImage("assets/bigKey_0.png")
+bigKeySprites[2] = love.graphics.newImage("assets/bigKey_1.png")
+bigKeySprites[3] = love.graphics.newImage("assets/bigKey_2.png")
+bigKeySprites[4] = love.graphics.newImage("assets/bigKey_3.png")
+
+local smallKeySprite = love.graphics.newImage("assets/smallKeyForPick.png")
+
 -- LOVE callbacks
 function love.load()
   love.window.setTitle("F2 Adventure - Maze & Inventory")
@@ -279,13 +301,18 @@ function love.keypressed(key)
     if key == "r" then
         isCrateLocked = true
         timeLeft = timeLimit
-        hasKey = false
-        currentRoom = "main"
-        if world then
-            setupWorld(currentRoom)
-        end
+        bigKeyStage = 0
+        message = ""
+        messageTimer = 0
         pulling = false
-    
+
+        for k, zone in pairs(yellowZones) do
+            zone.collected = false
+        end
+
+        currentRoom = "main"
+        setupWorld(currentRoom)
+
     elseif key == "space" then
         if world then
             local px, py = player:getPosition()
@@ -299,12 +326,17 @@ function love.keypressed(key)
                 
                 if dist <= pullDistance then
                     if isCrateLocked then
-                        if hasKey then
+                        if bigKeyStage == maxKeyStage then
                             isCrateLocked = false
                             crate:setType("dynamic")
                             message = "msg_unlock"
                         else
-                            message = "msg_lock"
+                            if bigKeyStage == 0 then
+                                bigKeyStage = 1
+                                message = "msg_piece"
+                            else
+                                message = "msg_lock"
+                            end
                         end
                         messageTimer = 3
                     else
@@ -320,26 +352,39 @@ function love.keypressed(key)
                 -- YELLOW ZONE INTERACTION (Rooms 1, 2, 3)
                 local zone = yellowZones[currentRoom]
                 if zone then
-                    -- Calculate distance to center of yellow zone
-                    local zCenterX = zone.x + zone.w/2
-                    local zCenterY = zone.y + zone.h/2
-                    local dist = math.sqrt((zCenterX-px)^2 + (zCenterY-py)^2)
-                    
-                    if dist <= 60 then
-                        if zone.hasKey then
-                            if not hasKey then
-                                hasKey = true
-                                message = "msg_found"
-                            else
-                                message = "msg_have"
+                    if bigKeyStage > 0 then
+                        local zcx = zone.x + zone.w/2
+                        local zcy = zone.y + zone.h/2
+                        local dist = ((px-zcx)^2 + (py-zcy)^2)^0.5
+
+                        if dist <= 60 and not zone.collected then
+                            zone.collected = true
+
+                            if bigKeyStage < maxKeyStage then
+                                bigKeyStage = bigKeyStage + 1
                             end
-                        else
-                            message = "msg_no"
+
+                            message = "msg_piece" 
+                            messageTimer = 3
                         end
-                        messageTimer = 3
                     end
                 end
             end
+        end
+    end 
+    if key == "u" and bigKeyStage > 0 then
+        if not uKeyWarning then
+            message = "msg_u_warn"
+            messageTimer = 3
+            uKeyWarning = true
+        else
+            bigKeyStage = 0
+            for k, zone in pairs(yellowZones) do
+                zone.collected = false
+            end
+            message = "msg_u_done"
+            messageTimer = 3
+            uKeyWarning = false
         end
     end
 end
@@ -452,15 +497,27 @@ function love.draw()
         love.graphics.rectangle("fill", cx-20, cy-20, 40, 40)
     
     else
-        -- Draw Yellow Interaction Zones (Rooms 1, 2, 3)
+        -- Draw Yellow Interaction Zones
         local zone = yellowZones[currentRoom]
         if zone then
-            love.graphics.setColor(1, 1, 0, 0.6) -- Yellow
+            love.graphics.setColor(1,1,0,0.6)
             love.graphics.rectangle("fill", zone.x, zone.y, zone.w, zone.h)
-            love.graphics.setColor(1, 1, 1, 1)
-            
-            -- [[ UPDATED: Use variable text ]]
+            love.graphics.setColor(1,1,1,1)
             love.graphics.print(curTxt.zone, zone.x, zone.y - 15)
+
+            -- Small key in center if not picked up
+            if not zone.collected then
+                local img = smallKeySprite
+                local shrink = 0.5
+                local scaleX = shrink * zone.w / img:getWidth()
+                local scaleY = shrink * zone.h / img:getHeight()
+                love.graphics.draw(
+                    img,
+                    zone.x + zone.w/2 - img:getWidth()*scaleX/2,
+                    zone.y + zone.h/2 - img:getHeight()*scaleY/2,
+                    0, scaleX, scaleY
+                )
+            end
         end
     end
 
@@ -470,29 +527,43 @@ function love.draw()
   end
 
   -- HUD & UI
+  love.graphics.setColor(1, 1, 1, 0.5)
+  love.graphics.rectangle("fill", 10, 10, 520, 100, 8, 8)
   local y = 20
   local function line(text)
+    love.graphics.setColor(0, 0, 0, 1)
     love.graphics.print(text, 20, y)
     y = y + 18
   end
+
+  if bigKeyStage > 0 and not uKeyWarning then
+    love.graphics.setColor(0.5, 0, 0, 1)
+    local langCode = langs[currentLangIndex]
+    local curTxt = txt[langCode]
+    love.graphics.print(curTxt.msg_u_hit, 20, 80)
+  end
+
 
   -- INVENTORY DISPLAY
   love.graphics.setColor(0, 0, 0, 0.5)
   love.graphics.rectangle("fill", 650, 10, 140, 60)
   love.graphics.setColor(1, 1, 1, 1)
   love.graphics.rectangle("line", 650, 10, 140, 60)
-  
-  -- [[ UPDATED: Use variable text ]]
+
   love.graphics.print(curTxt.inv, 660, 20)
-  if hasKey then
-      love.graphics.setColor(1, 1, 0, 1)
-      love.graphics.print(curTxt.key, 660, 40)
-  else
+
+  if bigKeyStage == 0 then
       love.graphics.setColor(0.6, 0.6, 0.6, 1)
       love.graphics.print(curTxt.empty, 660, 40)
+  else
+      love.graphics.setColor(1, 1, 1, 1)
+      local scale = 0.033
+      love.graphics.draw(bigKeySprites[bigKeyStage], 660, 40, 0, scale, scale)
+
+      local progressStr = string.format(curTxt.key_progress, bigKeyStage, maxKeyStage)
+      love.graphics.print(progressStr, 700, 40)
   end
   love.graphics.setColor(1, 1, 1, 1)
-
 
   if world then
     -- [[ UPDATED: Use variable text ]]
@@ -501,11 +572,11 @@ function love.draw()
     
     -- Status Messages
     if message ~= "" then
-        love.graphics.setColor(1, 0.5, 0, 1)
+        love.graphics.setColor(0.7, 0, 0, 1)
         
         -- [[ UPDATED: Lookup message key ]]
         local str = curTxt[message] or message
-        love.graphics.print(str, 300, 50)
+        love.graphics.print(str, 300, 150)
         
         love.graphics.setColor(1, 1, 1, 1)
     end

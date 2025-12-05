@@ -112,6 +112,40 @@ local txt = {
     }
 }
 
+virtualButtons = {
+    -- Movement
+    up =    {x=80,  y=430, w=60, h=60, pressed=false},
+    down =  {x=80,  y=530, w=60, h=60, pressed=false},
+    left =  {x=20,  y=480, w=60, h=60, pressed=false},
+    right = {x=140, y=480, w=60, h=60, pressed=false},
+
+    -- Actions
+    interact = {x=660, y=450, w=120, h=60, pressed=false}, 
+    undo     = {x=660, y=520, w=120, h=40, pressed=false},
+    restart  = {x=660, y=400, w=120, h=40, pressed=false}, 
+    lang     = {x=660, y=350, w=120, h=40, pressed=false}, 
+}
+
+function checkButtonPress(x, y)
+    for name, b in pairs(virtualButtons) do
+        if x >= b.x and x <= b.x + b.w and
+           y >= b.y and y <= b.y + b.h then
+            return name
+        end
+    end
+    return nil
+end
+
+function love.touchpressed(id, x, y)
+    local btn = checkButtonPress(x, y)
+    if btn then virtualButtons[btn].pressed = true end
+end
+
+function love.touchreleased(id, x, y)
+    local btn = checkButtonPress(x, y)
+    if btn then virtualButtons[btn].pressed = false end
+end
+
 -- Helpers
 local function createWall(x, y, w, h)
     local wall = world:newCollider("Rectangle", {x, y, w, h})
@@ -207,7 +241,7 @@ local currentRoom = "main"
 local buttonY = 560
 local buttonW = 80
 local buttonH = 30
-local buttonXStart = 20
+local buttonXStart = 200
 
 -- Room Change Handlers
 -- REFACTORED: Now all rooms call setupWorld with their name
@@ -403,10 +437,10 @@ end
 local function updatePlayerMovement(dt)
   if not world then return end
   local vx, vy = 0, 0
-  if love.keyboard.isDown("a") or love.keyboard.isDown("left")  then vx = vx - moveSpeed end
-  if love.keyboard.isDown("d") or love.keyboard.isDown("right") then vx = vx + moveSpeed end
-  if love.keyboard.isDown("w") or love.keyboard.isDown("up")    then vy = vy - moveSpeed end
-  if love.keyboard.isDown("s") or love.keyboard.isDown("down")  then vy = vy + moveSpeed end
+  if love.keyboard.isDown("a") or love.keyboard.isDown("left") or virtualButtons["left"].pressed then vx = vx - moveSpeed end
+  if love.keyboard.isDown("d") or love.keyboard.isDown("right") or virtualButtons["right"].pressed then vx = vx + moveSpeed end
+  if love.keyboard.isDown("w") or love.keyboard.isDown("up") or virtualButtons["up"].pressed    then vy = vy - moveSpeed end
+  if love.keyboard.isDown("s") or love.keyboard.isDown("down") or virtualButtons["down"].pressed  then vy = vy + moveSpeed end
   player:setLinearVelocity(vx, vy)
 end
 
@@ -447,6 +481,26 @@ function love.update(dt)
   if messageTimer > 0 then
       messageTimer = messageTimer - dt
       if messageTimer <= 0 then message = "" end
+  end
+
+  if virtualButtons.interact.pressed then
+    love.keypressed("space")
+    virtualButtons.interact.pressed = false
+  end
+
+  if virtualButtons.undo.pressed then
+    love.keypressed("u")
+    virtualButtons.undo.pressed = false
+  end
+
+  if virtualButtons.restart.pressed then
+      love.keypressed("r")
+      virtualButtons.restart.pressed = false
+  end
+
+  if virtualButtons.lang.pressed then
+      love.keypressed("l")
+      virtualButtons.lang.pressed = false
   end
 
   dream:update()
@@ -526,7 +580,6 @@ function love.draw()
     world:draw()
   end
 
-  -- HUD & UI
   love.graphics.setColor(1, 1, 1, 0.5)
   love.graphics.rectangle("fill", 10, 10, 520, 100, 8, 8)
   local y = 20
@@ -596,6 +649,23 @@ function love.draw()
     love.graphics.setColor(1,1,1,1)
     love.graphics.printf(label, x, buttonY + 6, buttonW, "center")
     x = x + buttonW + 10
+  end
+
+  -- Touchscreen buttons
+  for name, b in pairs(virtualButtons) do
+      love.graphics.setColor(0, 0, 0, 0.35)
+      love.graphics.rectangle("fill", b.x, b.y, b.w, b.h, 10, 10)
+
+      love.graphics.setColor(1, 1, 1, 1)
+      love.graphics.rectangle("line", b.x, b.y, b.w, b.h, 10, 10)
+
+      love.graphics.printf(
+          name:upper(),
+          b.x,
+          b.y + b.h/2 - 10,
+          b.w,
+          "center"
+    )
   end
 end
 

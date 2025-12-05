@@ -130,35 +130,17 @@ function checkButtonPress(x, y)
     for name, b in pairs(virtualButtons) do
         if x >= b.x and x <= b.x + b.w and
            y >= b.y and y <= b.y + b.h then
-
-            -- Movement buttons should be holdable
-            if name == "up" or name == "down" or name == "left" or name == "right" then
-                return name, true   -- second value = isHoldable
-            end
-
-            -- Other buttons are single-tap
-            return name, false
+            return name
         end
     end
-    return nil, false
+    return nil
 end
 
 function love.touchpressed(id, x, y)
-    local btn, holdable = checkButtonPress(x, y)
-    if btn then
-        if holdable then
-            virtualButtons[btn].pressed = true
-        else
-            -- trigger its action immediately
-            love.keypressed(
-                btn == "interact" and "space" or
-                btn == "undo" and "u" or
-                btn == "restart" and "r" or
-                btn == "lang" and "l"
-
-            )
-        end
-        return
+    local btn = checkButtonPress(x, y)
+    if btn then 
+        virtualButtons[btn].pressed = true 
+        return 
     end
 
     local bx = buttonXStart
@@ -173,10 +155,8 @@ function love.touchpressed(id, x, y)
 end
 
 function love.touchreleased(id, x, y)
-    local btn, holdable = checkButtonPress(x, y)
-    if btn and holdable then
-        virtualButtons[btn].pressed = false
-    end
+    local btn = checkButtonPress(x, y)
+    if btn then virtualButtons[btn].pressed = false end    
 end
 
 -- Helpers
@@ -707,23 +687,13 @@ end
 function love.mousepressed(mx, my, button)
     if button ~= 1 then return end
 
-    -- FIXED: use mx, my
-    local btn, holdable = checkButtonPress(mx, my)
+    local btn = checkButtonPress(mx, my)
     if btn then
-        if holdable then
-            virtualButtons[btn].pressed = true
-        else
-            love.keypressed(
-                btn == "interact" and "space" or
-                btn == "undo" and "u" or
-                btn == "restart" and "r" or
-                btn == "lang" and "l"
-            )
-        end
+        virtualButtons[btn].pressed = true
         return
     end
 
-    -- Room buttons
+    -- 2) Room switching buttons
     local x = buttonXStart
     for i, room in ipairs(rooms) do
         if mx >= x and mx <= x + buttonW and
@@ -738,9 +708,8 @@ end
 function love.mousereleased(mx, my, button)
     if button ~= 1 then return end
 
-    -- FIXED: use mx, my
-    local btn, holdable = checkButtonPress(mx, my)
-    if btn and holdable then
+    local btn = checkButtonPress(mx, my)
+    if btn then
         virtualButtons[btn].pressed = false
     end
 end

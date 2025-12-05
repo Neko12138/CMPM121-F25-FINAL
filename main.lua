@@ -156,9 +156,7 @@ end
 
 function love.touchreleased(id, x, y)
     local btn = checkButtonPress(x, y)
-    if btn then virtualButtons[btn].pressed = false end
-    releaseAllVirtualButtons()
-    
+    if btn then virtualButtons[btn].pressed = false end    
 end
 
 -- Helpers
@@ -438,11 +436,7 @@ function love.keypressed(key)
     end
 end
 
-local function releaseAllVirtualButtons()
-    for _, b in pairs(virtualButtons) do
-        b.pressed = false
-    end
-end
+
 
 -- release space to stop pulling
 function love.keyreleased(key)
@@ -718,7 +712,6 @@ function love.mousereleased(mx, my, button)
     if btn then
         virtualButtons[btn].pressed = false
     end
-    releaseAllVirtualButtons()
 end
 
 function love.resize()

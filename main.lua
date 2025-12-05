@@ -138,12 +138,27 @@ end
 
 function love.touchpressed(id, x, y)
     local btn = checkButtonPress(x, y)
-    if btn then virtualButtons[btn].pressed = true end
+    if btn then 
+        virtualButtons[btn].pressed = true 
+        return 
+    end
+
+    local bx = buttonXStart
+    for i, room in ipairs(rooms) do
+        if x >= bx and x <= bx + buttonW and
+           y >= buttonY and y <= buttonY + buttonH then
+            enterRoom(room)
+            return
+        end
+        bx = bx + buttonW + 10
+    end
 end
 
 function love.touchreleased(id, x, y)
     local btn = checkButtonPress(x, y)
     if btn then virtualButtons[btn].pressed = false end
+    releaseAllVirtualButtons()
+    
 end
 
 -- Helpers
@@ -423,6 +438,12 @@ function love.keypressed(key)
     end
 end
 
+local function releaseAllVirtualButtons()
+    for _, b in pairs(virtualButtons) do
+        b.pressed = false
+    end
+end
+
 -- release space to stop pulling
 function love.keyreleased(key)
     if key == "space" then
@@ -437,10 +458,10 @@ end
 local function updatePlayerMovement(dt)
   if not world then return end
   local vx, vy = 0, 0
-  if love.keyboard.isDown("a") or love.keyboard.isDown("left") or virtualButtons["left"].pressed then vx = vx - moveSpeed end
-  if love.keyboard.isDown("d") or love.keyboard.isDown("right") or virtualButtons["right"].pressed then vx = vx + moveSpeed end
-  if love.keyboard.isDown("w") or love.keyboard.isDown("up") or virtualButtons["up"].pressed    then vy = vy - moveSpeed end
-  if love.keyboard.isDown("s") or love.keyboard.isDown("down") or virtualButtons["down"].pressed  then vy = vy + moveSpeed end
+  if love.keyboard.isDown("a") or love.keyboard.isDown("left") or virtualButtons.left.pressed then vx = vx - moveSpeed end
+  if love.keyboard.isDown("d") or love.keyboard.isDown("right") or virtualButtons.right.pressed then vx = vx + moveSpeed end
+  if love.keyboard.isDown("w") or love.keyboard.isDown("up") or virtualButtons.up.pressed    then vy = vy - moveSpeed end
+  if love.keyboard.isDown("s") or love.keyboard.isDown("down") or virtualButtons.down.pressed  then vy = vy + moveSpeed end
   player:setLinearVelocity(vx, vy)
 end
 
@@ -671,15 +692,33 @@ end
 
 function love.mousepressed(mx, my, button)
     if button ~= 1 then return end
-    
-    -- Room switching buttons
+
+    local btn = checkButtonPress(mx, my)
+    if btn then
+        virtualButtons[btn].pressed = true
+        return
+    end
+
+    -- 2) Room switching buttons
     local x = buttonXStart
     for i, room in ipairs(rooms) do
-        if mx >= x and mx <= x + buttonW and my >= buttonY and my <= buttonY + buttonH then
+        if mx >= x and mx <= x + buttonW and
+           my >= buttonY and my <= buttonY + buttonH then
             enterRoom(room)
+            return
         end
         x = x + buttonW + 10
     end
+end
+
+function love.mousereleased(mx, my, button)
+    if button ~= 1 then return end
+
+    local btn = checkButtonPress(mx, my)
+    if btn then
+        virtualButtons[btn].pressed = false
+    end
+    releaseAllVirtualButtons()
 end
 
 function love.resize()

@@ -160,9 +160,10 @@ function love.touchreleased(id, x, y)
 end
 
 -- Helpers
-local function createWall(x, y, w, h)
+local function createWall(x, y, w, h, isDeadly)
     local wall = world:newCollider("Rectangle", {x, y, w, h})
     wall:setType("static")
+    wall.isDeadly = isDeadly or false
     table.insert(walls, wall)
 end
 
@@ -204,42 +205,50 @@ local function setupWorld(roomName)
       end
 
       -- Original Walls
-      createWall(400, 50, 760, 20)   -- top
-      createWall(400, 550, 760, 20)  -- bottom
-      createWall(50, 300, 20, 500)   -- left
-      createWall(750, 300, 20, 500)  -- right
+      createWall(400, 50, 760, 20, false)   -- top
+      createWall(400, 550, 760, 20, false)  -- bottom
+      createWall(50, 300, 20, 500, false)   -- left
+      createWall(750, 300, 20, 500, false)  -- right
 
   elseif roomName == "room1" then
       -- == ROOM 1
-      createWall(400, 25, 800, 50) -- Top
-      createWall(400, 575, 800, 50)-- Bottom
-      createWall(25, 300, 50, 600) -- Left
-      createWall(775, 300, 50, 600)-- Right
+      createWall(400, 25, 800, 50, false) -- Top
+      createWall(400, 575, 800, 50, false)-- Bottom
+      createWall(25, 300, 50, 600, false) -- Left
+      createWall(775, 300, 50, 600, false)-- Right
       
       -- Maze walls
-      createWall(300, 200, 400, 20)
-      createWall(500, 400, 400, 20)
+      createWall(550, 150, 750, 35, true)
+      createWall(250, 260, 750, 35, true)
+      createWall(550, 360, 750, 35, true)
+      createWall(250, 460, 750, 35, true)
 
   elseif roomName == "room2" then
       -- == ROOM 2
-      createWall(400, 25, 800, 50)
-      createWall(400, 575, 800, 50)
-      createWall(25, 300, 50, 600)
-      createWall(775, 300, 50, 600)
+      createWall(400, 25, 800, 50, false)
+      createWall(400, 575, 800, 50, false)
+      createWall(25, 300, 50, 600, false)
+      createWall(775, 300, 50, 600, false)
       
       -- Maze walls
-      createWall(250, 300, 20, 400)
-      createWall(550, 300, 20, 400)
+      createWall(200, 250, 35, 400, true)
+      createWall(350, 400, 35, 400, true)
+      createWall(500, 250, 35, 400, true)
+      createWall(650, 400, 35, 400, true)
 
   elseif roomName == "room3" then
       -- == ROOM 3
-      createWall(400, 25, 800, 50)
-      createWall(400, 575, 800, 50)
-      createWall(25, 300, 50, 600)
-      createWall(775, 300, 50, 600)
+      createWall(400, 25, 800, 50, false)
+      createWall(400, 575, 800, 50, false)
+      createWall(25, 300, 50, 600, false)
+      createWall(775, 300, 50, 600, false)
       
       -- Maze walls
-      createWall(400, 300, 200, 200)
+      createWall(250, 200, 200, 600, true)
+      createWall(250, 850, 200, 600, true)
+      createWall(550, 400, 200, 600, true)
+      createWall(550, -250, 200, 600, true)
+
   end
 
   gameState = "playing"
@@ -485,6 +494,43 @@ function love.update(dt)
     updatePulling(dt)
     world:update(dt)
 
+    -- Add deadly wall 
+    if player then
+        local px, py = player:getPosition()
+        local playerSize = 40  -- player size
+        
+for _, wall in ipairs(walls) do
+            if wall.isDeadly then
+                local wx, wy = wall:getPosition()
+                
+                local wallWidth, wallHeight
+                
+                if currentRoom == "room1" then
+                        wallWidth = 181  -- wall death trap width
+                        wallHeight = 1  -- wall death trap height
+
+                elseif currentRoom == "room2" then
+                        wallWidth = 1   -- wall death trap width
+                        wallHeight = 181 -- wall death trap height
+                elseif currentRoom == "room3" then
+                        wallWidth = 81  -- wall death trap width
+                        wallHeight = 281 -- wall death trap height
+                else
+                    wallWidth = 25  -- wall death trap width
+                    wallHeight = 25 -- wall death trap height
+                end
+                
+                if math.abs(px - wx) < playerSize + wallWidth and
+                   math.abs(py - wy) < playerSize + wallHeight then
+                    gameState = "fail"
+                    message = "You hit a deadly wall!"
+                    messageTimer = 3
+                    break
+                end
+            end
+        end
+    end
+
     timeLeft = math.max(timeLeft - dt, 0)
     if timeLeft <= 0 and gameState ~= "success" then
       gameState = "fail"
@@ -533,6 +579,7 @@ function love.draw()
     dream:draw(ballSprite, transform)
   end
   dream:present()
+  love.graphics.reset()
 
   -- 2) 2D physics + HUD
   love.graphics.origin()

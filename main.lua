@@ -344,7 +344,7 @@ function love.load()
   enterRoom("main")
 end
 
-function resetGameState() {
+function resetGameState() 
     isCrateLocked = true
     timeLeft = timeLimit
     bigKeyStage = 0
@@ -359,7 +359,7 @@ function resetGameState() {
     currentRoom = "main"
     setupWorld(currentRoom)
 end
-}
+
 
 -- Input
 function love.keypressed(key)

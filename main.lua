@@ -544,25 +544,43 @@ function love.update(dt)
       if messageTimer <= 0 then message = "" end
   end
 
-  if virtualButtons.interact.pressed then
-    love.keypressed("space")
-    virtualButtons.interact.pressed = false
-  end
+    if not virtualButtonStates then
+        virtualButtonStates = {
+            interact = false,
+            undo = false,
+            restart = false,
+            lang = false
+        }
+    end
 
-  if virtualButtons.undo.pressed then
-    love.keypressed("u")
-    virtualButtons.undo.pressed = false
-  end
+    -- Handle each virtual button: trigger keypress only on press (not hold)
+    if virtualButtons.interact.pressed and not virtualButtonStates.interact then
+        love.keypressed("space")
+        virtualButtonStates.interact = true
+    elseif not virtualButtons.interact.pressed then
+        virtualButtonStates.interact = false
+    end
 
-  if virtualButtons.restart.pressed then
-      love.keypressed("r")
-      virtualButtons.restart.pressed = false
-  end
+    if virtualButtons.undo.pressed and not virtualButtonStates.undo then
+        love.keypressed("u")
+        virtualButtonStates.undo = true
+    elseif not virtualButtons.undo.pressed then
+        virtualButtonStates.undo = false
+    end
 
-  if virtualButtons.lang.pressed then
-      love.keypressed("l")
-      virtualButtons.lang.pressed = false
-  end
+    if virtualButtons.restart.pressed and not virtualButtonStates.restart then
+        love.keypressed("r")
+        virtualButtonStates.restart = true
+    elseif not virtualButtons.restart.pressed then
+        virtualButtonStates.restart = false
+    end
+
+    if virtualButtons.lang.pressed and not virtualButtonStates.lang then
+        love.keypressed("l")
+        virtualButtonStates.lang = true
+    elseif not virtualButtons.lang.pressed then
+        virtualButtonStates.lang = false
+    end
 
   dream:update()
 end

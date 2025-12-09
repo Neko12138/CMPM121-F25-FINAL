@@ -72,7 +72,8 @@ local txt = {
         msg_u_warn = "WARNING: This will undo all key progress. Press U again to confirm.",
         msg_u_done = "All key progress has been undone!",
         msg_u_hit = "Press U to destroy key",
-        key_progress = "[ Triangle Key %d/%d ]"
+        key_progress = "[ Triangle Key %d/%d ]",
+        hit_deadly = "You hit a deadly wall!"
     },
     zh = {
         ctrl = "操作: WASD 移动. 空格 互动. R 重置. L 切换语言.",
@@ -90,7 +91,8 @@ local txt = {
         msg_u_warn = "警告，这将撤销你所有的收集进度，再次按U以确认",
         msg_u_done = "钥匙进度已撤销！",
         msg_u_hit = "按U摧毁钥匙。",
-        key_progress = "[ 三角钥匙 %d/%d ]"
+        key_progress = "[ 三角钥匙 %d/%d ]",
+        hit_deadly = "你撞到了致命的墙！"
     },
     ar = {
         ctrl = "تحكم: WASD تحرك. مسافة تفاعل. R إعادة. L لغة.", 
@@ -108,7 +110,8 @@ local txt = {
         msg_u_warn = "تحذير: سيؤدي هذا إلى التراجع عن كل تقدم المفتاح. اضغط U مرة أخرى للتأكيد.",
         msg_u_done = "تم التراجع عن كل تقدم المفتاح!",
         msg_u_hit = ".اضغط U مرة أخرى للتأكيد.",
-        key_progress = "[ مفتاح مثلث %d/%d ]"
+        key_progress = "[ مفتاح مثلث %d/%d ]",
+        hit_deadly = "لقد اصطدمت بجدار قاتل!"
     }
 }
 
@@ -164,6 +167,8 @@ local function createWall(x, y, w, h, isDeadly)
     local wall = world:newCollider("Rectangle", {x, y, w, h})
     wall:setType("static")
     wall.isDeadly = isDeadly or false
+    wall.width = w  
+    wall.height = h
     table.insert(walls, wall)
 end
 
@@ -500,41 +505,31 @@ function love.update(dt)
     world:update(dt)
 
     -- Add deadly wall 
-    if player then
+        if player then
         local px, py = player:getPosition()
-        local playerSize = 40  -- player size
-        
-for _, wall in ipairs(walls) do
-            if wall.isDeadly then
-                local wx, wy = wall:getPosition()
-                
-                local wallWidth, wallHeight
-                
-                if currentRoom == "room1" then
-                        wallWidth = 181  -- wall death trap width
-                        wallHeight = 1  -- wall death trap height
 
-                elseif currentRoom == "room2" then
-                        wallWidth = 1   -- wall death trap width
-                        wallHeight = 181 -- wall death trap height
-                elseif currentRoom == "room3" then
-                        wallWidth = 81  -- wall death trap width
-                        wallHeight = 281 -- wall death trap height
-                else
-                    wallWidth = 25  -- wall death trap width
-                    wallHeight = 25 -- wall death trap height
-                end
-                
-                if math.abs(px - wx) < playerSize + wallWidth and
-                   math.abs(py - wy) < playerSize + wallHeight then
+        for _, wall in ipairs(walls) do
+            if wall.isDeadly then
+                print("Found deadly wall at:", wall:getPosition(), "Size:", wall.width, "x", wall.height)
+                local wx, wy = wall:getPosition()
+                local ww = wall.width
+                local wh = wall.height
+                local hw = ww / 2 + 1
+                local hh = wh / 2  + 1
+                local hs = 20      
+
+                -- AABB: overlap on both axes = collision
+                if px + hs > wx - hw and px - hs < wx + hw and
+                py + hs > wy - hh and py - hs < wy + hh then
                     gameState = "fail"
-                    message = "You hit a deadly wall!"
+                    message = "hit_deadly"
                     messageTimer = 3
-                    break
+                    break  -- exit early
                 end
             end
         end
     end
+
 
     timeLeft = math.max(timeLeft - dt, 0)
     if timeLeft <= 0 and gameState ~= "success" then

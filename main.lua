@@ -344,6 +344,23 @@ function love.load()
   enterRoom("main")
 end
 
+function resetGameState() {
+    isCrateLocked = true
+    timeLeft = timeLimit
+    bigKeyStage = 0
+    message = ""
+    messageTimer = 0
+    pulling = false
+
+    for k, zone in pairs(yellowZones) do
+        zone.collected = false
+    end
+
+    currentRoom = "main"
+    setupWorld(currentRoom)
+end
+}
+
 -- Input
 function love.keypressed(key)
     -- [[ Switch Language Logic ]]
@@ -355,19 +372,7 @@ function love.keypressed(key)
     end
 
     if key == "r" then
-        isCrateLocked = true
-        timeLeft = timeLimit
-        bigKeyStage = 0
-        message = ""
-        messageTimer = 0
-        pulling = false
-
-        for k, zone in pairs(yellowZones) do
-            zone.collected = false
-        end
-
-        currentRoom = "main"
-        setupWorld(currentRoom)
+        resetGameState()
 
     elseif key == "space" then
         if world then
